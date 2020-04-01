@@ -32,14 +32,14 @@
         "sqlServerServiceAccountUserName": {
             "type": "string",
             "metadata": {
-                "description": "The SQL Server Service Account name"
+                "description": "Existing domain user account to be used as the SQL Server Service Account name"
             },
             "defaultValue": "sqlservice"
         },
         "sqlServerServiceAccountPassword": {
             "type": "securestring",
             "metadata": {
-                "description": "The SQL Server Service Account password"
+                "description": "Password for the SQL Server Service Account"
             }
         },
         "subnetUri": {
