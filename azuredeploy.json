@@ -42,18 +42,6 @@
                 "description": "The SQL Server Service Account password"
             }
         },
-        "workloadType": {
-            "type": "string",
-            "allowedValues": [
-                "GENERAL",
-                "OLTP",
-                "DW"
-            ],
-            "metadata": {
-                "description": "The SQL Server workload type: GENERAL - general workload; DW - data warehouse workload; OLTP - transactional processing workload"
-            },
-            "defaultValue": "GENERAL"
-        },
         "subnetUri": {
             "type": "string",
             "metadata": {
@@ -519,6 +507,10 @@
                         "adminCreds": {
                             "userName": "[parameters('adminUsername')]",
                             "password": "[parameters('adminPassword')]"
+                        },
+                        "sqlCreds": {
+                            "userName": "[parameters('sqlServerServiceAccountUserName')]",
+                            "password": "[parameters('sqlServerServiceAccountPassword')]"
                         }
                     },
                     "configurationUrlSasToken": "[parameters('_artifactsLocationSasToken')]"
@@ -555,7 +547,6 @@
                         "dataDiskSizeGB": "[parameters('dataDiskSizeGB')]",
                         "witnessType": "[parameters('witnessType')]",
                         "witnessStorageName": "[if(equals(parameters('witnessType'),'Cloud'),variables('witnessStorageName'),'')]",
-                        "workloadType": "[parameters('workloadType')]",
                         "listenerIPAddress": "[reference(variables('ilbName')).frontendIPConfigurations[0].properties.privateIPAddress]",
                         "listenerProbePort": "[variables('ilbProbePort')]",
                         "listenerPort": "[variables('ilbListenPorts')[0].backend]"

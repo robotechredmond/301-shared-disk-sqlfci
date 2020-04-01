@@ -22,9 +22,6 @@ configuration ConfigureCluster
         [String]$SQLClusterName,
 
         [Parameter(Mandatory)]
-        [String]$WorkloadType,
-
-        [Parameter(Mandatory)]
         [String]$NamePrefix,
 
         [Parameter(Mandatory)]
@@ -50,7 +47,7 @@ configuration ConfigureCluster
 
     Import-DscResource -ModuleName PSDesiredStateConfiguration, ComputerManagementDsc, ActiveDirectoryDsc
 
-    [System.Management.Automation.PSCredential]$DomainCreds = New-Object System.Management.Automation.PSCredential ("$($Admincreds.UserName)@${DomainName}", $Admincreds.Password)
+    [System.Management.Automation.PSCredential]$DomainCreds = New-Object System.Management.Automation.PSCredential ("$($AdminCreds.UserName)@${DomainName}", $AdminCreds.Password)
 
     [System.Collections.ArrayList]$Nodes = @()
     For ($count = 1; $count -lt $VMCount; $count++) {
@@ -122,14 +119,14 @@ configuration ConfigureCluster
         }
 
         Script FormatSharedDisks {
-            SetScript  = "Get-Disk | Where-Object PartitionStyle -eq 'RAW' | Initialize-Disk -PartitionStyle GPT -PassThru -ErrorAction SilentlyContinue | New-Partition -AssignDriveLetter -UseMaximumSize -ErrorAction SilentlyContinue | Format-Volume -FileSystem NTFS -Confirm:`$false"
+            SetScript  = "Get-Disk | Where-Object PartitionStyle -eq 'RAW' | Sort-Object -Property Number | Initialize-Disk -PartitionStyle GPT -PassThru -ErrorAction SilentlyContinue | New-Partition -AssignDriveLetter -UseMaximumSize -ErrorAction SilentlyContinue | Format-Volume -FileSystem NTFS -AllocationUnitSize 65536 -UseLargeFRS -Confirm:`$false"
             TestScript = "(Get-Disk | Where-Object PartitionStyle -eq 'RAW').Count -eq 0"
             GetScript  = "@{Ensure = if ((Get-Disk | Where-Object PartitionStyle -eq 'RAW').Count -eq 0) {'Present'} else {'Absent'}}"
             DependsOn  = "[Script]CreateCluster"
         }
 
         Script AddClusterDisks {
-            SetScript  = "Get-ClusterAvailableDisk | Add-ClusterDisk"
+            SetScript  = "Get-ClusterAvailableDisk | Sort-Object -Property Number | Add-ClusterDisk"
             TestScript = "(Get-ClusterAvailableDisk).Count -eq 0"
             GetScript  = "@{Ensure = if ((Get-ClusterAvailableDisk).Count -eq 0) {'Present'} else {'Absent'}}"
             DependsOn  = "[Script]FormatSharedDisks"
@@ -148,64 +145,34 @@ configuration ConfigureCluster
             GetScript  = "@{Ensure = if ((Get-Cluster).SameSubnetDelay -eq 2000 -and (Get-Cluster).SameSubnetThreshold -eq 15 -and (Get-Cluster).CrossSubnetDelay -eq 3000 -and (Get-Cluster).CrossSubnetThreshold -eq 15) {'Present'} else {'Absent'}}"
             DependsOn  = "[Script]ClusterWitness"
         }
-
-        <#
         
         Script UninstallSQL {
-            SetScript  = "C:\SQLServerFull\Setup.exe /Action=Uninstall /FEATURES=SQL,AS,RS,IS /INSTANCENAME=MSSQLSERVER /Q"
-            TestScript = "!(Test-Path -Path 'C:\Program Files\Microsoft SQL Server\MSSQL13.MSSQLSERVER\MSSQL\DATA\master.mdf')"
-            GetScript  = "@{Ensure = if (!(Test-Path -Path 'C:\Program Files\Microsoft SQL Server\MSSQL13.MSSQLSERVER\MSSQL\DATA\master.mdf') {'Present'} else {'Absent'}}"
+            SetScript  = "C:\SQLServerFull\Setup.exe /Action=Uninstall /FEATURES=SQL,AS,RS,IS /INSTANCENAME=MSSQLSERVER /Q ; `$global:DSCMachineStatus = 1"
+            TestScript = "!(Test-Path -Path 'C:\Program Files\Microsoft SQL Server\MSSQL15.MSSQLSERVER\MSSQL\DATA\master.mdf')"
+            GetScript  = "@{Ensure = if (!(Test-Path -Path 'C:\Program Files\Microsoft SQL Server\MSSQL15.MSSQLSERVER\MSSQL\DATA\master.mdf') {'Present'} else {'Absent'}}"
             DependsOn  = "[Script]IncreaseClusterTimeouts"
         }
 
-        Script Reboot1 {
-            SetScript  = ""
-            TestScript = ""
-            GetScript  = "@{Ensure = if () {'Present'} else {'Absent'}}"
+        Script PrepareClusterSQLRole {
+            SetScript  = "C:\SQLServerFull\Setup.exe /Action=PrepareFailoverCluster /SkipRules=Cluster_VerifyForErrors /IAcceptSQLServerLicenseTerms=True /FEATURES=SQL /INSTANCENAME=MSSQLSERVER /SQLSVCACCOUNT='${DomainName}\$($SQLCreds.Username)' /SQLSVCPASSWORD='$($SQLCreds.GetNetworkCredential().Password)' /AGTSVCACCOUNT='${DomainName}\$($SQLCreds.Username)' /AGTSVCPASSWORD='$($SQLCreds.GetNetworkCredential().Password)' /Q ; `$global:DSCMachineStatus = 1"
+            TestScript = "(Get-Service | Where-Object Name -eq 'MSSQLSERVER').Count -gt 0"
+            GetScript  = "@{Ensure = if ((Get-Service | Where-Object Name -eq 'MSSQLSERVER').Count -gt 0) {'Present'} else {'Absent'}}"
+            PsDscRunAsCredential = $DomainCreds
             DependsOn  = "[Script]UninstallSQL"
         }
 
-        Script MoveClusterGroup1 {
-            SetScript  = ""
-            TestScript = ""
-            GetScript  = "@{Ensure = if () {'Present'} else {'Absent'}}"
-            DependsOn  = "[Script]Reboot1"
-        }
-
-        Script PrepareClusterSQLRole {
-            SetScript  = ""
-            TestScript = ""
-            GetScript  = "@{Ensure = if () {'Present'} else {'Absent'}}"
+        Script CompleteClusterSQLRole {
+            SetScript  = "Get-ClusterGroup -ErrorAction SilentlyContinue | Move-ClusterGroup -Node ${env:COMPUTERNAME} -ErrorAction SilentlyContinue ; C:\SQLServerFull\Setup.exe /Action=CompleteFailoverCluster /SkipRules=Cluster_VerifyForErrors /IAcceptSQLServerLicenseTerms=True /INSTANCENAME=MSSQLSERVER /FAILOVERCLUSTERDISKS=$(((Get-ClusterGroup -Name 'Available Storage' | Get-ClusterResource | Where-Object ResourceType -eq 'Physical Disk') | % { '"' + $_.Name + '"' }) -join ' ') /FAILOVERCLUSTERNETWORKNAME=${SQLClusterName} /FAILOVERCLUSTERIPADDRESSES='IPv4;${ListenerIPAddress};$((Get-ClusterNetwork).Name);$((Get-ClusterNetwork).AddressMask)' /SQLSYSADMINACCOUNTS='$($DomainCreds.Username)' /SQLUSERDBDIR='$((((((Get-ClusterGroup -Name 'Available Storage' | Get-ClusterResource | Where-Object ResourceType -eq 'Physical Disk') | Get-ClusterParameter) | Where-Object Name -eq 'DiskGuid').Value | % { ((Get-Partition | Where-Object DiskPath -eq "\\?\Disk$($_)").DriveLetter) } ).Where({$_ -ne [char]0x00}) | Sort-Object)[0]):\MSSQL\DATA' /SQLUSERDBLOGDIR='$((((((Get-ClusterGroup -Name 'Available Storage' | Get-ClusterResource | Where-Object ResourceType -eq 'Physical Disk') | Get-ClusterParameter) | Where-Object Name -eq 'DiskGuid').Value | % { ((Get-Partition | Where-Object DiskPath -eq "\\?\Disk$($_)").DriveLetter) } ).Where({$_ -ne [char]0x00}) | Sort-Object)[-1]):\MSSQL\DATA' /Q ; `$global:DSCMachineStatus = 1"
+            TestScript = "(Get-ClusterGroup -Name 'SQL Server (MSSQLSERVER)' -ErrorAction SilentlyContinue).Count -gt 0"
+            GetScript  = "@{Ensure = if ((Get-ClusterGroup -Name 'SQL Server (MSSQLSERVER)' -ErrorAction SilentlyContinue).Count -gt 0) {'Present'} else {'Absent'}}"
             PsDscRunAsCredential = $DomainCreds
-            DependsOn  = "[Script]MoveClusterGroup1"
-        }
-
-        Script Reboot2 {
-            SetScript  = ""
-            TestScript = ""
-            GetScript  = "@{Ensure = if () {'Present'} else {'Absent'}}"
             DependsOn  = "[Script]PrepareClusterSQLRole"
         }
 
-        Script MoveClusterGroup2 {
-            SetScript  = ""
-            TestScript = ""
-            GetScript  = "@{Ensure = if () {'Present'} else {'Absent'}}"
-            DependsOn  = "[Script]Reboot2"
-        }
-
-        Script CompleteClusterSQLRole {
-            SetScript  = ""
-            TestScript = ""
-            GetScript  = "@{Ensure = if () {'Present'} else {'Absent'}}"
-            PsDscRunAsCredential = $DomainCreds
-            DependsOn  = "[Script]MoveClusterGroup2"
-        }
-
         Script ClusterIPAddress {
-            SetScript  = "Get-ClusterResource -Name 'IP Address ${ListenerIPAddress}' | Set-ClusterParameter -Name ProbePort ${ListenerProbePort}; Stop-ClusterGroup -Name ${FSName}; Start-ClusterGroup -Name ${FSName}"
-            TestScript = "(Get-ClusterResource -Name 'IP Address ${ListenerIPAddress}' -ErrorAction SilentlyContinue | Get-ClusterParameter -Name ProbePort).Value -eq ${ListenerProbePort}"
-            GetScript  = "@{Ensure = if ((Get-ClusterResource -Name 'IP Address ${ListenerIPAddress}' -ErrorAction SilentlyContinue | Get-ClusterParameter -Name ProbePort).Value -eq ${ListenerProbePort}) {'Present'} else {'Absent'}}"
+            SetScript  = "Get-ClusterGroup -Name 'SQL Server (MSSQLSERVER)' -ErrorAction SilentlyContinue | Get-ClusterResource | Where-Object ResourceType -eq 'IP Address' -ErrorAction SilentlyContinue | Set-ClusterParameter -Name ProbePort ${ListenerProbePort}; Stop-ClusterGroup -Name 'SQL Server (MSSQLSERVER)'; Start-ClusterGroup -Name 'SQL Server (MSSQLSERVER)'"
+            TestScript = "(Get-ClusterGroup -Name 'SQL Server (MSSQLSERVER)' -ErrorAction SilentlyContinue | Get-ClusterResource | Where-Object ResourceType -eq 'IP Address' -ErrorAction SilentlyContinue | Get-ClusterParameter -Name ProbePort).Value -eq ${ListenerProbePort}"
+            GetScript  = "@{Ensure = if ((Get-ClusterGroup -Name 'SQL Server (MSSQLSERVER)' -ErrorAction SilentlyContinue | Get-ClusterResource | Where-Object ResourceType -eq 'IP Address' -ErrorAction SilentlyContinue | Get-ClusterParameter -Name ProbePort).Value -eq ${ListenerProbePort}) {'Present'} else {'Absent'}}"
             DependsOn  = "[Script]CompleteClusterSQLRole"
         }
         
@@ -217,20 +184,11 @@ configuration ConfigureCluster
         }
 
         Script FirewallRuleListenerPort {
-            SetScript  = "Remove-NetFirewallRule -DisplayName 'Failover Cluster - Listener Port' -ErrorAction SilentlyContinue; New-NetFirewallRule -DisplayName 'Failover Cluster - Listener Port' -Profile Domain -Direction Inbound -Action Allow -Enabled True -Protocol 'tcp' -LocalPort ${ListenerPort}"
+            SetScript  = "Remove-NetFirewallRule -DisplayName 'Failover Cluster - Listener Port' -ErrorAction SilentlyContinue; New-NetFirewallRule -DisplayName 'Failover Cluster - Listener Port' -Profile Domain -Direction Inbound -Action Allow -Enabled True -Protocol 'tcp' -LocalPort ${ListenerPort} ; `$global:DSCMachineStatus = 1"
             TestScript = "(Get-NetFirewallRule -DisplayName 'Failover Cluster - Listener Port' -ErrorAction SilentlyContinue | Get-NetFirewallPortFilter -ErrorAction SilentlyContinue).LocalPort -eq ${ListenerPort}"
             GetScript  = "@{Ensure = if ((Get-NetFirewallRule -DisplayName 'Failover Cluster - Listener Port' -ErrorAction SilentlyContinue | Get-NetFirewallPortFilter -ErrorAction SilentlyContinue).LocalPort -eq ${ListenerPort}) {'Present'} else {'Absent'}}"
             DependsOn  = "[Script]FirewallRuleProbePort"
         }
-
-        Script Reboot3 {
-            SetScript  = ""
-            TestScript = ""
-            GetScript  = "@{Ensure = if () {'Present'} else {'Absent'}}"
-            DependsOn  = "[Script]FirewallRuleListenerPort"
-        }
-
-        #>
 
         LocalConfigurationManager {
             RebootNodeIfNeeded = $True
