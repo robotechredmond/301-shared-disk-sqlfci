@@ -162,9 +162,17 @@ configuration ConfigureCluster
         }
 
         Script CompleteClusterSQLRole {
-            SetScript  = "Get-ClusterGroup -ErrorAction SilentlyContinue | Move-ClusterGroup -Node ${env:COMPUTERNAME} -ErrorAction SilentlyContinue ; C:\SQLServerFull\Setup.exe /Action=CompleteFailoverCluster /SkipRules=Cluster_VerifyForErrors /IAcceptSQLServerLicenseTerms=True /INSTANCENAME=MSSQLSERVER /FAILOVERCLUSTERDISKS=`$(((Get-ClusterGroup -Name 'Available Storage' | Get-ClusterResource | Where-Object ResourceType -eq 'Physical Disk') | % { '""' + `$_.Name + '""' }) -join ' ') /FAILOVERCLUSTERNETWORKNAME=${SQLClusterName} /FAILOVERCLUSTERIPADDRESSES='IPv4;${ListenerIPAddress};`$((Get-ClusterNetwork).Name);`$((Get-ClusterNetwork).AddressMask)' /SQLSYSADMINACCOUNTS='$($DomainCreds.Username)' /SQLUSERDBDIR='`$((((((Get-ClusterGroup -Name 'Available Storage' | Get-ClusterResource | Where-Object ResourceType -eq 'Physical Disk') | Get-ClusterParameter) | Where-Object Name -eq 'DiskGuid').Value | % { ((Get-Partition | Where-Object DiskPath -eq '\\?\Disk`$(`$_)').DriveLetter) } ).Where({`$_ -ne [char]0x00}) | Sort-Object)[0]):\MSSQL\DATA' /SQLUSERDBLOGDIR='`$((((((Get-ClusterGroup -Name 'Available Storage' | Get-ClusterResource | Where-Object ResourceType -eq 'Physical Disk') | Get-ClusterParameter) | Where-Object Name -eq 'DiskGuid').Value | % { ((Get-Partition | Where-Object DiskPath -eq '\\?\Disk`$(`$_)').DriveLetter) } ).Where({`$_ -ne [char]0x00}) | Sort-Object)[-1]):\MSSQL\DATA' /Q ; `$global:DSCMachineStatus = 1"
-            TestScript = "(Get-ClusterGroup -Name 'SQL Server (MSSQLSERVER)' -ErrorAction SilentlyContinue).Count -gt 0"
-            GetScript  = "@{Ensure = if ((Get-ClusterGroup -Name 'SQL Server (MSSQLSERVER)' -ErrorAction SilentlyContinue).Count -gt 0) {'Present'} else {'Absent'}}"
+            SetScript  = {
+                Get-ClusterGroup -ErrorAction SilentlyContinue | Move-ClusterGroup -Node ${env:COMPUTERNAME} -ErrorAction SilentlyContinue
+                C:\SQLServerFull\Setup.exe /Action=CompleteFailoverCluster /SkipRules=Cluster_VerifyForErrors /IAcceptSQLServerLicenseTerms=True /INSTANCENAME=MSSQLSERVER /FAILOVERCLUSTERDISKS=$(((Get-ClusterGroup -Name 'Available Storage' | Get-ClusterResource | Where-Object ResourceType -eq 'Physical Disk') | ForEach-Object { '""' + $_.Name + '""' }) -join ' ') /FAILOVERCLUSTERNETWORKNAME=${SQLClusterName} /FAILOVERCLUSTERIPADDRESSES="IPv4;${ListenerIPAddress};$((Get-ClusterNetwork).Name);$((Get-ClusterNetwork).AddressMask)" /SQLSYSADMINACCOUNTS="$($DomainCreds.Username)" /SQLUSERDBDIR="$((((((Get-ClusterGroup -Name 'Available Storage' | Get-ClusterResource | Where-Object ResourceType -eq 'Physical Disk') | Get-ClusterParameter) | Where-Object Name -eq 'DiskGuid').Value | ForEach-Object { ((Get-Partition | Where-Object DiskPath -eq ""\\?\Disk$($_)"").DriveLetter) } ).Where({$_ -ne [char]0x00}) | Sort-Object)[0]):\MSSQL\DATA" /SQLUSERDBLOGDIR="$((((((Get-ClusterGroup -Name 'Available Storage' | Get-ClusterResource | Where-Object ResourceType -eq 'Physical Disk') | Get-ClusterParameter) | Where-Object Name -eq 'DiskGuid').Value | ForEach-Object { ((Get-Partition | Where-Object DiskPath -eq ""\\?\Disk$($_)"").DriveLetter) } ).Where({$_ -ne [char]0x00}) | Sort-Object)[-1]):\MSSQL\DATA" /Q
+                $global:DSCMachineStatus = 1
+            }
+            TestScript = {
+                (Get-ClusterGroup -Name 'SQL Server (MSSQLSERVER)' -ErrorAction SilentlyContinue).Count -gt 0
+            }
+            GetScript  = {
+                @{Ensure = if ((Get-ClusterGroup -Name 'SQL Server (MSSQLSERVER)' -ErrorAction SilentlyContinue).Count -gt 0) {'Present'} else {'Absent'}}
+            }
             PsDscRunAsCredential = $DomainCreds
             DependsOn  = "[Script]PrepareClusterSQLRole"
         }

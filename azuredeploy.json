@@ -138,7 +138,6 @@
             }
         ],
         "diskArray": "[take(variables('dataDisks'),if(equals(parameters('witnessType'),'Cloud'),2,3))]",
-        "diskMaxShares": 2,
         "witnessStorageName": "[concat(parameters('namePrefix'),'w',uniqueString(resourceGroup().name))]",
         "witnessStorageType": "Standard_LRS",
         "apiVersionStorage": "2019-06-01",
@@ -207,7 +206,7 @@
                     "createOption": "Empty"
                 },
                 "diskSizeGB": "[parameters('dataDiskSizeGB')]",
-                "maxShares": "[variables('diskMaxShares')]"
+                "maxShares": "[variables('vmCount')]"
             }
         },
         {
@@ -223,7 +222,7 @@
                     "createOption": "Empty"
                 },
                 "diskSizeGB": "[parameters('logDiskSizeGB')]",
-                "maxShares": "[variables('diskMaxShares')]"
+                "maxShares": "[variables('vmCount')]"
             }
         },
         {
@@ -240,7 +239,7 @@
                     "createOption": "Empty"
                 },
                 "diskSizeGB": "[variables('witnessDiskSizeGB')]",
-                "maxShares": "[variables('diskMaxShares')]"
+                "maxShares": "[variables('vmCount')]"
             }
         },
         {
