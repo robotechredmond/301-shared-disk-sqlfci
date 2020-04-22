@@ -81,6 +81,13 @@
             },
             "defaultValue": 1023
         },
+        "combineDataAndLogDisk": {
+            "type": "bool",
+            "metadata": {
+                "description": "Should Data and Logs be combined on a single shared disk?"
+            },
+            "defaultValue": false
+        },
         "witnessType": {
             "type": "string",
             "allowedValues":[
@@ -137,7 +144,7 @@
                 }
             }
         ],
-        "diskArray": "[take(variables('dataDisks'),if(equals(parameters('witnessType'),'Cloud'),2,3))]",
+        "diskArray": "[if(parameters('combineDataAndLogDisk'),if(equals(parameters('witnessType'),'Cloud'),take(variables('dataDisks'),1),concat(first(variables('dataDisks')),last(variables('dataDisks')))),if(equals(parameters('witnessType'),'Cloud'),take(variables('dataDisks'),2),variables('dataDisks')))]",
         "witnessStorageName": "[concat(parameters('namePrefix'),'w',uniqueString(resourceGroup().name))]",
         "witnessStorageType": "Standard_LRS",
         "apiVersionStorage": "2019-06-01",
@@ -214,6 +221,7 @@
             "type": "Microsoft.Compute/disks",
             "location": "[resourceGroup().location]",
             "apiVersion": "2019-07-01",
+            "condition": "[not(parameters('combineDataAndLogDisk'))]",
             "sku": {
                 "name": "Premium_LRS"
             },
