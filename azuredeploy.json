@@ -144,7 +144,7 @@
                 }
             }
         ],
-        "diskArray": "[if(parameters('combineDataAndLogDisk'),if(equals(parameters('witnessType'),'Cloud'),take(variables('dataDisks'),1),concat(first(variables('dataDisks')),last(variables('dataDisks')))),if(equals(parameters('witnessType'),'Cloud'),take(variables('dataDisks'),2),variables('dataDisks')))]",
+        "diskArray": "[if(parameters('combineDataAndLogDisk'),if(equals(parameters('witnessType'),'Cloud'),take(variables('dataDisks'),1),createArray(first(variables('dataDisks')),last(variables('dataDisks')))),if(equals(parameters('witnessType'),'Cloud'),take(variables('dataDisks'),2),variables('dataDisks')))]",
         "witnessStorageName": "[concat(parameters('namePrefix'),'w',uniqueString(resourceGroup().name))]",
         "witnessStorageType": "Standard_LRS",
         "apiVersionStorage": "2019-06-01",
