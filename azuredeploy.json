@@ -154,6 +154,11 @@
                 "protocol": "tcp",
                 "frontend": 1433,
                 "backend": 1433
+            },
+            {
+                "protocol": "tcp",
+                "frontend": 2383,
+                "backend": 2383
             }
         ],
         "ilbProbePort": 59999,
@@ -506,7 +511,8 @@
                     "configurationArguments": {
                         "domainName": "[parameters('domainName')]",
                         "listenerProbePort": "[variables('ilbProbePort')]",
-                        "listenerPort": "[variables('ilbListenPorts')[0].backend]"
+                        "listenerPort1": "[variables('ilbListenPorts')[0].backend]",
+                        "listenerPort2": "[variables('ilbListenPorts')[1].backend]"
                     }
                 },
                 "protectedSettings": {
@@ -556,7 +562,8 @@
                         "witnessStorageName": "[if(equals(parameters('witnessType'),'Cloud'),variables('witnessStorageName'),'')]",
                         "listenerIPAddress": "[reference(variables('ilbName')).frontendIPConfigurations[0].properties.privateIPAddress]",
                         "listenerProbePort": "[variables('ilbProbePort')]",
-                        "listenerPort": "[variables('ilbListenPorts')[0].backend]"
+                        "listenerPort1": "[variables('ilbListenPorts')[0].backend]",
+                        "listenerPort2": "[variables('ilbListenPorts')[1].backend]"
                     }
                 },
                 "protectedSettings": {

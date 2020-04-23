@@ -36,7 +36,9 @@ configuration ConfigureCluster
         [Parameter(Mandatory)]
         [Int]$ListenerProbePort,
 
-        [Int]$ListenerPort,
+        [Int]$ListenerPort1 = 1433,
+
+        [Int]$ListenerPort2 = 2383,
 
         [Int]$DataDiskSizeGB,
 
@@ -178,11 +180,18 @@ configuration ConfigureCluster
             DependsOn  = "[Script]ClusterIPAddress"
         }
 
-        Script FirewallRuleListenerPort {
-            SetScript  = "Remove-NetFirewallRule -DisplayName 'Failover Cluster - Listener Port' -ErrorAction SilentlyContinue; New-NetFirewallRule -DisplayName 'Failover Cluster - Listener Port' -Profile Domain -Direction Inbound -Action Allow -Enabled True -Protocol 'tcp' -LocalPort ${ListenerPort} ; `$global:DSCMachineStatus = 1"
-            TestScript = "(Get-NetFirewallRule -DisplayName 'Failover Cluster - Listener Port' -ErrorAction SilentlyContinue | Get-NetFirewallPortFilter -ErrorAction SilentlyContinue).LocalPort -eq ${ListenerPort}"
-            GetScript  = "@{Ensure = if ((Get-NetFirewallRule -DisplayName 'Failover Cluster - Listener Port' -ErrorAction SilentlyContinue | Get-NetFirewallPortFilter -ErrorAction SilentlyContinue).LocalPort -eq ${ListenerPort}) {'Present'} else {'Absent'}}"
+        Script FirewallRuleListenerPort1 {
+            SetScript  = "Remove-NetFirewallRule -DisplayName 'Failover Cluster - Listener Port 1' -ErrorAction SilentlyContinue; New-NetFirewallRule -DisplayName 'Failover Cluster - Listener Port 1' -Profile Domain -Direction Inbound -Action Allow -Enabled True -Protocol 'tcp' -LocalPort ${ListenerPort1}"
+            TestScript = "(Get-NetFirewallRule -DisplayName 'Failover Cluster - Listener Port 1' -ErrorAction SilentlyContinue | Get-NetFirewallPortFilter -ErrorAction SilentlyContinue).LocalPort -eq ${ListenerPort1}"
+            GetScript  = "@{Ensure = if ((Get-NetFirewallRule -DisplayName 'Failover Cluster - Listener Port 1' -ErrorAction SilentlyContinue | Get-NetFirewallPortFilter -ErrorAction SilentlyContinue).LocalPort -eq ${ListenerPort1}) {'Present'} else {'Absent'}}"
             DependsOn  = "[Script]FirewallRuleProbePort"
+        }
+
+        Script FirewallRuleListenerPort2 {
+            SetScript  = "Remove-NetFirewallRule -DisplayName 'Failover Cluster - Listener Port 2' -ErrorAction SilentlyContinue; New-NetFirewallRule -DisplayName 'Failover Cluster - Listener Port 2' -Profile Domain -Direction Inbound -Action Allow -Enabled True -Protocol 'tcp' -LocalPort ${ListenerPort2} ; `$global:DSCMachineStatus = 1"
+            TestScript = "(Get-NetFirewallRule -DisplayName 'Failover Cluster - Listener Port 2' -ErrorAction SilentlyContinue | Get-NetFirewallPortFilter -ErrorAction SilentlyContinue).LocalPort -eq ${ListenerPort2}"
+            GetScript  = "@{Ensure = if ((Get-NetFirewallRule -DisplayName 'Failover Cluster - Listener Port 2' -ErrorAction SilentlyContinue | Get-NetFirewallPortFilter -ErrorAction SilentlyContinue).LocalPort -eq ${ListenerPort2}) {'Present'} else {'Absent'}}"
+            DependsOn  = "[Script]FirewallRuleListenerPort1"
         }
 
         LocalConfigurationManager {
