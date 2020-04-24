@@ -10,44 +10,43 @@
                 "description": "Naming prefix for each new resource created. 3-char min, 8-char max, lowercase alphanumeric"
             }
         },
-        "adminUsername": {
+        "existingAdminUsername": {
             "type": "string",
             "metadata": {
                 "description": "Name of the Administrator of the existing Active Directory Domain"
             }
         },
-        "adminPassword": {
+        "existingAdminPassword": {
             "type": "securestring",
             "minLength": 12,
             "metadata": {
                 "description": "Password for the Administrator account of the existing Active Directory Domain"
             }
         },
-        "domainName": {
+        "existingDomainName": {
             "type": "string",
             "metadata": {
                 "description": "DNS domain name for existing Active Directory domain"
             }
         },
-        "sqlServerServiceAccountUserName": {
+        "existingSqlServiceAccountUserName": {
             "type": "string",
             "metadata": {
                 "description": "Existing domain user account to be used as the SQL Server Service Account name"
             },
             "defaultValue": "sqlservice"
         },
-        "sqlServerServiceAccountPassword": {
+        "existingSqlServiceAccountPassword": {
             "type": "securestring",
             "metadata": {
                 "description": "Password for the SQL Server Service Account"
             }
         },
-        "subnetUri": {
+        "existingSubnetResourceID": {
             "type": "string",
             "metadata": {
                 "description": "Resource ID for existing Virtual Network subnet to which VM NICs should be attached"
-            },
-            "defaultValue": "/subscriptions/{subscription-id}/resourceGroups/{resource-group-name}/providers/Microsoft.Network/virtualNetworks/{vnet-name}/subnets/{subnet-name}"
+            }
         },
         "vmSize": {
             "type": "string",
@@ -86,7 +85,7 @@
             "metadata": {
                 "description": "Should Data and Logs be combined on a single shared disk?"
             },
-            "defaultValue": false
+            "defaultValue": true
         },
         "witnessType": {
             "type": "string",
@@ -281,7 +280,7 @@
                         "properties": {
                             "privateIPAllocationMethod": "Dynamic",
                             "subnet": {
-                                "id": "[parameters('subnetUri')]"
+                                "id": "[parameters('existingSubnetResourceID')]"
                             }
                         }
                     }
@@ -416,7 +415,7 @@
                         "properties": {
                             "privateIPAllocationMethod": "Dynamic",
                             "subnet": {
-                                "id": "[parameters('subnetUri')]"
+                                "id": "[parameters('existingSubnetResourceID')]"
                             },
                             "loadBalancerBackendAddressPools": [
                                 {
@@ -453,8 +452,8 @@
                 },
                 "osProfile": {
                     "computerName": "[concat(parameters('namePrefix'), copyindex())]",
-                    "adminUsername": "[parameters('adminUsername')]",
-                    "adminPassword": "[parameters('adminPassword')]"
+                    "adminUsername": "[parameters('existingAdminUsername')]",
+                    "adminPassword": "[parameters('existingAdminPassword')]"
                 },
                 "storageProfile": {
                     "imageReference": {
@@ -509,7 +508,7 @@
                         "function": "[variables('clusterPrepFunction')]"
                     },
                     "configurationArguments": {
-                        "domainName": "[parameters('domainName')]",
+                        "domainName": "[parameters('existingDomainName')]",
                         "listenerProbePort": "[variables('ilbProbePort')]",
                         "listenerPort1": "[variables('ilbListenPorts')[0].backend]",
                         "listenerPort2": "[variables('ilbListenPorts')[1].backend]"
@@ -518,12 +517,12 @@
                 "protectedSettings": {
                     "configurationArguments": {
                         "adminCreds": {
-                            "userName": "[parameters('adminUsername')]",
-                            "password": "[parameters('adminPassword')]"
+                            "userName": "[parameters('existingAdminUsername')]",
+                            "password": "[parameters('existingAdminPassword')]"
                         },
                         "sqlCreds": {
-                            "userName": "[parameters('sqlServerServiceAccountUserName')]",
-                            "password": "[parameters('sqlServerServiceAccountPassword')]"
+                            "userName": "[parameters('existingSqlServiceAccountUserName')]",
+                            "password": "[parameters('existingSqlServiceAccountPassword')]"
                         }
                     },
                     "configurationUrlSasToken": "[parameters('_artifactsLocationSasToken')]"
@@ -552,7 +551,7 @@
                         "function": "[variables('clusterConfigFunction')]"
                     },
                     "configurationArguments": {
-                        "domainName": "[parameters('domainName')]",
+                        "domainName": "[parameters('existingDomainName')]",
                         "clusterName": "[variables('clusterName')]",
                         "sqlClusterName": "[variables('sqlClusterName')]",
                         "namePrefix": "[parameters('namePrefix')]",
@@ -569,16 +568,16 @@
                 "protectedSettings": {
                     "configurationArguments": {
                         "adminCreds": {
-                            "userName": "[parameters('adminUsername')]",
-                            "password": "[parameters('adminPassword')]"
+                            "userName": "[parameters('existingAdminUsername')]",
+                            "password": "[parameters('existingAdminPassword')]"
                         },
                         "witnessStorageKey": {
                             "userName": "PLACEHOLDER-DO-NOT-USE",
                             "password": "[if(equals(parameters('witnessType'),'Cloud'),listKeys(resourceId('Microsoft.Storage/storageAccounts',variables('witnessStorageName')),variables('apiVersionStorage')).keys[0].value,'PLACEHOLDER-DO-NOT-USE')]"
                         },
                         "sqlCreds": {
-                            "userName": "[parameters('sqlServerServiceAccountUserName')]",
-                            "password": "[parameters('sqlServerServiceAccountPassword')]"
+                            "userName": "[parameters('existingSqlServiceAccountUserName')]",
+                            "password": "[parameters('existingSqlServiceAccountPassword')]"
                         }
                     },
                     "configurationUrlSasToken": "[parameters('_artifactsLocationSasToken')]"
@@ -587,5 +586,17 @@
         }
     ],
     "outputs": {
+        "clusterName": {
+            "type": "string",
+            "value": "[concat(variables('clusterName'),'.',parameters('existingDomainName'))]"
+        },
+        "sqlClusterName": {
+            "type": "string",
+            "value": "[concat(variables('sqlClusterName'),'.',parameters('existingDomainName'))]"
+        },
+        "sqlClusterIp": {
+            "type": "string",
+            "value": "[reference(variables('ilbName')).frontendIPConfigurations[0].properties.privateIPAddress]"
+        }
     }
 }
