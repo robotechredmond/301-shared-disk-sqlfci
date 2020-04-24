@@ -100,7 +100,7 @@
         },
         "_artifactsLocation": {
             "type": "string",
-            "defaultValue": "[deployment().properties.templateLink.uri]"
+            "defaultValue": "https://raw.githubusercontent.com/robotechredmond/301-shared-disk-sqlfci/master"
         },
         "_artifactsLocationSasToken": {
             "type": "securestring",
