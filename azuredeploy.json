@@ -10,6 +10,12 @@
                 "description": "Naming prefix for each new resource created. 3-char min, 8-char max, lowercase alphanumeric"
             }
         },
+        "existingDomainName": {
+            "type": "string",
+            "metadata": {
+                "description": "DNS domain name for existing Active Directory domain"
+            }
+        },
         "existingAdminUsername": {
             "type": "string",
             "metadata": {
@@ -21,12 +27,6 @@
             "minLength": 12,
             "metadata": {
                 "description": "Password for the Administrator account of the existing Active Directory Domain"
-            }
-        },
-        "existingDomainName": {
-            "type": "string",
-            "metadata": {
-                "description": "DNS domain name for existing Active Directory domain"
             }
         },
         "existingSqlServiceAccountUserName": {
@@ -42,18 +42,18 @@
                 "description": "Password for the SQL Server Service Account"
             }
         },
-        "existingSubnetResourceID": {
-            "type": "string",
-            "metadata": {
-                "description": "Resource ID for existing Virtual Network subnet to which VM NICs should be attached"
-            }
-        },
         "vmSize": {
             "type": "string",
             "metadata": {
                 "description": "Size of the cluster node VMs to be created"
             },
             "defaultValue": "Standard_DS3_v2"
+        },
+        "existingSubnetResourceID": {
+            "type": "string",
+            "metadata": {
+                "description": "Resource ID for existing Virtual Network subnet to which VM NICs should be attached"
+            }
         },
         "enableAcceleratedNetworking": {
             "type": "bool",
