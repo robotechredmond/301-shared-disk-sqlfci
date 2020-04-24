@@ -49,6 +49,32 @@
             },
             "defaultValue": "Standard_DS3_v2"
         },
+        "vmImageOffer": {
+            "type": "string",
+            "allowedValues": [
+                "SQL2019-WS2019",
+                "SQL2019-WS2019-BYOL",
+                "SQL2017-WS2019",
+                "SQL2017-WS2019-BYOL",
+                "SQL2016SP2-WS2019",
+                "SQL2016SP2-WS2019-BYOL"
+            ],
+            "metadata": {
+                "description": "Version of SQL Server to be used for provisioning VMs"
+            },
+            "defaultValue": "SQL2019-WS2019"
+        },
+        "vmImageSku": {
+            "type": "string",
+            "allowedValues": [
+                "Enterprise",
+                "Standard"
+            ],
+            "metadata": {
+                "description": "Edition of SQL Server to be used for provisioning VMs"
+            },
+            "defaultValue": "Enterprise"
+        },
         "existingSubnetResourceID": {
             "type": "string",
             "metadata": {
@@ -166,8 +192,6 @@
         "vmCount": 2,
         "vmLoopMode": "serial",
         "vmImagePublisher": "microsoftsqlserver",
-        "vmImageOffer": "sql2019-ws2019",
-        "vmImageSku": "enterprise",
         "vmImageVersion": "latest",
         "clusterPrepURL": "[concat(parameters('_artifactsLocation'),'/dsc/PrepareClusterNode.ps1.zip')]",
         "clusterPrepScript": "PrepareClusterNode.ps1",
@@ -458,8 +482,8 @@
                 "storageProfile": {
                     "imageReference": {
                         "publisher": "[variables('vmImagePublisher')]",
-                        "offer": "[variables('vmImageOffer')]",
-                        "sku": "[variables('vmImageSKU')]",
+                        "offer": "[parameters('vmImageOffer')]",
+                        "sku": "[parameters('vmImageSKU')]",
                         "version": "[variables('vmImageVersion')]"
                     },
                     "osDisk": {
