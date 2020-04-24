@@ -80,10 +80,16 @@ configuration ConfigureCluster
             DependsOn = "[WindowsFeature]FCPS"
         }
 
+        WindowsFeature FCMgmt {
+            Name = "RSAT-Clustering-Mgmt"
+            Ensure = "Present"
+            DependsOn = "[WindowsFeature]FCCmd"
+        }
+
         WindowsFeature ADPS {
             Name      = "RSAT-AD-PowerShell"
             Ensure    = "Present"
-            DependsOn = "[WindowsFeature]FCCmd"
+            DependsOn = "[WindowsFeature]FCMgmt"
         }
 
         WaitForADDomain DscForestWait 

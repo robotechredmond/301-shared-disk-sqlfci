@@ -45,8 +45,13 @@ configuration PrepareClusterNode
         }
 
         WindowsFeature FCCmd {
-            Name      = "RSAT-Clustering-CmdInterface"
-            Ensure    = "Present"
+            Name = "RSAT-Clustering-CmdInterface"
+            Ensure = "Present"
+        }
+
+        WindowsFeature FCMgmt {
+            Name = "RSAT-Clustering-Mgmt"
+            Ensure = "Present"
         }
 
         WindowsFeature ADPS
