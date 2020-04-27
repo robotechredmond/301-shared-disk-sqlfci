@@ -53,7 +53,11 @@
             "type": "string",
             "allowedValues": [
                 "SQL2019-WS2019",
-                "SQL2019-WS2019-BYOL"
+                "SQL2019-WS2019-BYOL",
+                "SQL2017-WS2019",
+                "SQL2017-WS2019-BYOL",
+                "SQL2016SP2-WS2019",
+                "SQL2016SP2-WS2019-BYOL"
             ],
             "metadata": {
                 "description": "Version of SQL Server to be used for provisioning VMs"
@@ -169,20 +173,74 @@
         "witnessStorageName": "[concat(parameters('namePrefix'),'w',uniqueString(resourceGroup().name))]",
         "witnessStorageType": "Standard_LRS",
         "apiVersionStorage": "2019-06-01",
+        "clusterIpNeed": "[if(or(startsWith(parameters('vmImageOffer'),'SQL2016'),startsWith(parameters('vmImageOffer'),'SQL2017')),2,1)]",
         "ilbName": "[concat(parameters('namePrefix'),'-ilb')]",
-        "ilbListenPorts": [
+        "ilbFeIpConfigs": [
             {
-                "protocol": "tcp",
-                "frontend": 1433,
-                "backend": 1433
+                "name": "feIpConfig0",
+                "properties": {
+                    "privateIPAllocationMethod": "Dynamic",
+                    "subnet": {
+                        "id": "[parameters('existingSubnetResourceID')]"
+                    }
+                }
             },
             {
-                "protocol": "tcp",
-                "frontend": 2383,
-                "backend": 2383
+                "name": "feIpConfig1",
+                "properties": {
+                    "privateIPAllocationMethod": "Dynamic",
+                    "subnet": {
+                        "id": "[parameters('existingSubnetResourceID')]"
+                    }
+                }
             }
         ],
-        "ilbProbePort": 59999,
+        "ilbFeIpConfigArray": "[take(variables('ilbFeIpConfigs'),variables('clusterIpNeed'))]",
+        "ilbListenPorts": [
+            {
+                "feIpConfigId": "[concat(resourceId('Microsoft.Network/loadBalancers',variables('ilbName')),'/frontendIPConfigurations/feIpConfig0')]",
+                "protocol": "Tcp",
+                "frontend": 1433,
+                "backend": 1433,
+                "probeId": "[concat(resourceId('Microsoft.Network/loadBalancers',variables('ilbName')),'/probes/probe0')]"
+            },
+            {
+                "feIpConfigId": "[concat(resourceId('Microsoft.Network/loadBalancers',variables('ilbName')),'/frontendIPConfigurations/feIpConfig0')]",
+                "protocol": "Tcp",
+                "frontend": 2383,
+                "backend": 2383,
+                "probeId": "[concat(resourceId('Microsoft.Network/loadBalancers',variables('ilbName')),'/probes/probe0')]"
+            },
+            {
+                "feIpConfigId": "[concat(resourceId('Microsoft.Network/loadBalancers',variables('ilbName')),'/frontendIPConfigurations/feIpConfig1')]",
+                "protocol": "All",
+                "frontend": 0,
+                "backend": 0,
+                "probeId": "[concat(resourceId('Microsoft.Network/loadBalancers',variables('ilbName')),'/probes/probe1')]"
+            }
+        ],
+        "ilbListenPortArray": "[take(variables('ilbListenPorts'),add(variables('clusterIpNeed'),1))]",
+        "ilbProbePorts": [
+            {
+                "name": "probe0",
+                "properties": {
+                    "protocol": "Tcp",
+                    "port": "49100",
+                    "intervalInSeconds": 5,
+                    "numberOfProbes": 2
+                }
+            },
+            {
+                "name": "probe1",
+                "properties": {
+                    "protocol": "Tcp",
+                    "port": "49101",
+                    "intervalInSeconds": 5,
+                    "numberOfProbes": 2
+                }
+            }
+        ],
+        "ilbProbePortArray": "[take(variables('ilbProbePorts'),variables('clusterIpNeed'))]",
         "snatPipName": "[concat(parameters('namePrefix'),'-snatpip')]",
         "snatLbName": "[concat(parameters('namePrefix'),'-snatlb')]",
         "vmCount": 2,
@@ -294,17 +352,7 @@
                 "name": "Standard"
             },
             "properties": {
-                "frontendIPConfigurations": [
-                    {
-                        "name": "feIpConfig0",
-                        "properties": {
-                            "privateIPAllocationMethod": "Dynamic",
-                            "subnet": {
-                                "id": "[parameters('existingSubnetResourceID')]"
-                            }
-                        }
-                    }
-                ],
+                "frontendIPConfigurations": "[variables('ilbFeIpConfigArray')]",
                 "backendAddressPools": [
                     {
                         "name": "bePool0"
@@ -313,18 +361,18 @@
                 "copy": [
                     {
                         "name": "loadBalancingRules",
-                        "count": "[length(variables('ilbListenPorts'))]",
+                        "count": "[length(variables('ilbListenPortArray'))]",
                         "input": {
                             "name": "[concat('rule',copyIndex('loadBalancingRules'))]",
                             "properties": {
                                 "frontendIPConfiguration": {
-                                    "id": "[concat(resourceId('Microsoft.Network/loadBalancers',variables('ilbName')),'/frontendIPConfigurations/feIpConfig0')]"
+                                    "id": "[variables('ilbListenPorts')[copyIndex('loadBalancingRules')].feIpConfigId]"
                                 },
                                 "backendAddressPool": {
                                 "id": "[concat(resourceId('Microsoft.Network/loadBalancers',variables('ilbName')),'/backendAddressPools/bePool0')]"
                                 },
                                 "probe": {
-                                    "id": "[concat(resourceId('Microsoft.Network/loadBalancers',variables('ilbName')),'/probes/probe0')]"
+                                    "id": "[variables('ilbListenPorts')[copyIndex('loadBalancingRules')].probeId]"
                                 },
                                 "protocol": "[variables('ilbListenPorts')[copyIndex('loadBalancingRules')].protocol]",
                                 "frontendPort": "[variables('ilbListenPorts')[copyIndex('loadBalancingRules')].frontend]",
@@ -334,17 +382,7 @@
                         }
                     }
                 ],
-                "probes": [
-                    {
-                        "name": "probe0",
-                        "properties": {
-                            "protocol": "Tcp",
-                            "port": "[variables('ilbProbePort')]",
-                            "intervalInSeconds": 5,
-                            "numberOfProbes": 2
-                        }
-                    }
-                ]
+                "probes": "[variables('ilbProbePortArray')]"
             }
         },
         {
@@ -529,7 +567,8 @@
                     },
                     "configurationArguments": {
                         "domainName": "[parameters('existingDomainName')]",
-                        "listenerProbePort": "[variables('ilbProbePort')]",
+                        "listenerProbePort1": "[variables('ilbProbePorts')[0].properties.port]",
+                        "listenerProbePort2": "[variables('ilbProbePorts')[1].properties.port]",
                         "listenerPort1": "[variables('ilbListenPorts')[0].backend]",
                         "listenerPort2": "[variables('ilbListenPorts')[1].backend]"
                     }
@@ -579,8 +618,10 @@
                         "dataDiskSizeGB": "[parameters('dataDiskSizeGB')]",
                         "witnessType": "[parameters('witnessType')]",
                         "witnessStorageName": "[if(equals(parameters('witnessType'),'Cloud'),variables('witnessStorageName'),'')]",
-                        "listenerIPAddress": "[reference(variables('ilbName')).frontendIPConfigurations[0].properties.privateIPAddress]",
-                        "listenerProbePort": "[variables('ilbProbePort')]",
+                        "listenerIPAddress1": "[reference(variables('ilbName')).frontendIPConfigurations[0].properties.privateIPAddress]",
+                        "listenerIPAddress2": "[if(equals(variables('clusterIpNeed'),2),reference(variables('ilbName')).frontendIPConfigurations[1].properties.privateIPAddress,'0.0.0.0')]",
+                        "listenerProbePort1": "[variables('ilbProbePorts')[0].properties.port]",
+                        "listenerProbePort2": "[variables('ilbProbePorts')[1].properties.port]",
                         "listenerPort1": "[variables('ilbListenPorts')[0].backend]",
                         "listenerPort2": "[variables('ilbListenPorts')[1].backend]"
                     }

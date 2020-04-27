@@ -31,10 +31,13 @@ configuration ConfigureCluster
         [String]$WitnessType,
 
         [Parameter(Mandatory)]
-        [String]$ListenerIPAddress,
+        [String]$ListenerIPAddress1,
 
-        [Parameter(Mandatory)]
-        [Int]$ListenerProbePort,
+        [String]$ListenerIPAddress2 = "0.0.0.0",
+
+        [Int]$ListenerProbePort1 = 49100,
+
+        [Int]$ListenerProbePort2 = 49101,
 
         [Int]$ListenerPort1 = 1433,
 
@@ -56,6 +59,12 @@ configuration ConfigureCluster
     [System.Collections.ArrayList]$Nodes = @()
     For ($count = 1; $count -lt $VMCount; $count++) {
         $Nodes.Add($NamePrefix + $Count.ToString())
+    }
+
+    If ($ListenerIPAddress2 -ne "0.0.0.0") {
+        $ClusterSetupOptions = "-StaticAddress ${ListenerIPAddress2} -ManagementPointNetworkType Singleton"
+    } else {
+        $ClusterSetupOptions = ""
     }
   
     WaitForSqlSetup
@@ -111,11 +120,18 @@ configuration ConfigureCluster
         }
 
         Script CreateCluster {
-            SetScript            = "New-Cluster -Name ${ClusterName} -Node ${env:COMPUTERNAME} -NoStorage "
+            SetScript            = "New-Cluster -Name ${ClusterName} -Node ${env:COMPUTERNAME} -NoStorage ${ClusterSetupOptions}"
             TestScript           = "(Get-Cluster -ErrorAction SilentlyContinue).Name -eq '${ClusterName}'"
             GetScript            = "@{Ensure = if ((Get-Cluster -ErrorAction SilentlyContinue).Name -eq '${ClusterName}') {'Present'} else {'Absent'}}"
             PsDscRunAsCredential = $DomainCreds
             DependsOn            = "[Computer]DomainJoin"
+        }
+
+        Script ClusterIPAddress {
+            SetScript  = "Get-ClusterGroup -Name 'ClusterGroup' -ErrorAction SilentlyContinue | Get-ClusterResource | Where-Object ResourceType -eq 'IP Address' -ErrorAction SilentlyContinue | Set-ClusterParameter -Name ProbePort ${ListenerProbePort2}; Stop-ClusterGroup -Name 'Cluster Group'; Start-ClusterGroup -Name 'Cluster Group'"
+            TestScript = "if ('${ListenerIpAddress2}' -eq '0.0.0.0') { `$true } else { (Get-ClusterGroup -Name 'ClusterGroup' -ErrorAction SilentlyContinue | Get-ClusterResource | Where-Object ResourceType -eq 'IP Address' -ErrorAction SilentlyContinue | Get-ClusterParameter -Name ProbePort).Value -eq ${ListenerProbePort2}}"
+            GetScript  = "@{Ensure = if ('${ListenerIpAddress2}' -eq '0.0.0.0') { 'Present' } elseif ((Get-ClusterGroup -Name 'ClusterGroup' -ErrorAction SilentlyContinue | Get-ClusterResource | Where-Object ResourceType -eq 'IP Address' -ErrorAction SilentlyContinue | Get-ClusterParameter -Name ProbePort).Value -eq ${ListenerProbePort2}) {'Present'} else {'Absent'}}"
+            DependsOn  = "[Script]CreateCluster"
         }
 
         foreach ($Node in $Nodes) {
@@ -124,7 +140,7 @@ configuration ConfigureCluster
                 TestScript           = "'${Node}' -in (Get-ClusterNode).Name"
                 GetScript            = "@{Ensure = if ('${Node}' -in (Get-ClusterNode).Name) {'Present'} else {'Absent'}}"
                 PsDscRunAsCredential = $DomainCreds
-                DependsOn            = "[Script]CreateCluster"
+                DependsOn            = "[Script]ClusterIPAddress"
             }
         }
 
@@ -165,32 +181,39 @@ configuration ConfigureCluster
         }
 
         Script CompleteClusterSQLRole {
-            SetScript  = "Get-ClusterGroup -ErrorAction SilentlyContinue | Move-ClusterGroup -Node ${env:COMPUTERNAME} -ErrorAction SilentlyContinue; `$Disks = (Get-ClusterGroup -Name 'Available Storage' | Get-ClusterResource | Sort-Object Name); `$DataDiskId = ((`$Disks | Select-Object -First 1 | Get-ClusterParameter -Name 'DiskIdGuid').Value); `$LogDiskId = ((`$Disks | Select-Object -Last 1 | Get-ClusterParameter -Name 'DiskIdGuid').Value); C:\SQLServerFull\Setup.exe /Action=CompleteFailoverCluster /SkipRules=Cluster_VerifyForErrors /IAcceptSQLServerLicenseTerms=True /INSTANCENAME=`"MSSQLSERVER`" /FAILOVERCLUSTERDISKS=`"`$((Get-ClusterGroup -Name 'Available Storage' | Get-ClusterResource | Where-Object ResourceType -eq 'Physical Disk')[0].Name)`" `"`$(@{`$true=`$null; `$false=`$((Get-ClusterGroup -Name 'Available Storage' | Get-ClusterResource | Where-Object ResourceType -eq 'Physical Disk')[-1].Name)}[`$LogDiskId -eq `$DataDiskId])`" /FAILOVERCLUSTERNETWORKNAME=`"${SQLClusterName}`" /FAILOVERCLUSTERIPADDRESSES=`"IPv4;${ListenerIPAddress};`$((Get-ClusterNetwork).Name);`$((Get-ClusterNetwork).AddressMask)`" /SQLSYSADMINACCOUNTS=`"$($DomainCreds.Username)`" /ASSYSADMINACCOUNTS=`"$($DomainCreds.Username)`" /ASSERVERMODE=`"$($ASServerMode)`" /SQLUSERDBDIR=`"`$((Get-Disk | ? Guid -eq `$DataDiskId | Get-Partition | Get-Volume).DriveLetter + ':\MSSQL\DATA')`" /SQLBACKUPDIR=`"`$((Get-Disk | ? Guid -eq `$DataDiskId | Get-Partition | Get-Volume).DriveLetter + ':\MSSQL\BACKUP')`" /SQLUSERDBLOGDIR=`"`$((Get-Disk | ? Guid -eq `$LogDiskId | Get-Partition | Get-Volume).DriveLetter + ':\MSSQL\DATA')`" /ASDATADIR=`"`$((Get-Disk | ? Guid -eq `$DataDiskId | Get-Partition | Get-Volume).DriveLetter + ':\OLAP\DATA')`" /ASCONFIGDIR=`"`$((Get-Disk | ? Guid -eq `$DataDiskId | Get-Partition | Get-Volume).DriveLetter + ':\OLAP\CONFIG')`" /ASLOGDIR=`"`$((Get-Disk | ? Guid -eq `$LogDiskId | Get-Partition | Get-Volume).DriveLetter + ':\OLAP\LOG')`" /Q; `$global:DSCMachineStatus = 1"
+            SetScript  = "Get-ClusterGroup -ErrorAction SilentlyContinue | Move-ClusterGroup -Node ${env:COMPUTERNAME} -ErrorAction SilentlyContinue; `$Disks = (Get-ClusterGroup -Name 'Available Storage' | Get-ClusterResource | Sort-Object Name); `$DataDiskId = ((`$Disks | Select-Object -First 1 | Get-ClusterParameter -Name 'DiskIdGuid').Value); `$LogDiskId = ((`$Disks | Select-Object -Last 1 | Get-ClusterParameter -Name 'DiskIdGuid').Value); C:\SQLServerFull\Setup.exe /Action=CompleteFailoverCluster /SkipRules=Cluster_VerifyForErrors /IAcceptSQLServerLicenseTerms=True /INSTANCENAME=`"MSSQLSERVER`" /FAILOVERCLUSTERDISKS=`"`$((Get-ClusterGroup -Name 'Available Storage' | Get-ClusterResource | Where-Object ResourceType -eq 'Physical Disk')[0].Name)`" `"`$(@{`$true=`$null; `$false=`$((Get-ClusterGroup -Name 'Available Storage' | Get-ClusterResource | Where-Object ResourceType -eq 'Physical Disk')[-1].Name)}[`$LogDiskId -eq `$DataDiskId])`" /FAILOVERCLUSTERNETWORKNAME=`"${SQLClusterName}`" /FAILOVERCLUSTERIPADDRESSES=`"IPv4;${ListenerIPAddress1};`$((Get-ClusterNetwork).Name);`$((Get-ClusterNetwork).AddressMask)`" /SQLSYSADMINACCOUNTS=`"$($DomainCreds.Username)`" /ASSYSADMINACCOUNTS=`"$($DomainCreds.Username)`" /ASSERVERMODE=`"$($ASServerMode)`" /SQLUSERDBDIR=`"`$((Get-Disk | ? Guid -eq `$DataDiskId | Get-Partition | Get-Volume).DriveLetter + ':\MSSQL\DATA')`" /SQLBACKUPDIR=`"`$((Get-Disk | ? Guid -eq `$DataDiskId | Get-Partition | Get-Volume).DriveLetter + ':\MSSQL\BACKUP')`" /SQLUSERDBLOGDIR=`"`$((Get-Disk | ? Guid -eq `$LogDiskId | Get-Partition | Get-Volume).DriveLetter + ':\MSSQL\DATA')`" /ASDATADIR=`"`$((Get-Disk | ? Guid -eq `$DataDiskId | Get-Partition | Get-Volume).DriveLetter + ':\OLAP\DATA')`" /ASCONFIGDIR=`"`$((Get-Disk | ? Guid -eq `$DataDiskId | Get-Partition | Get-Volume).DriveLetter + ':\OLAP\CONFIG')`" /ASLOGDIR=`"`$((Get-Disk | ? Guid -eq `$LogDiskId | Get-Partition | Get-Volume).DriveLetter + ':\OLAP\LOG')`" /Q; `$global:DSCMachineStatus = 1"
             TestScript = "(Get-ClusterGroup -Name 'SQL Server (MSSQLSERVER)' -ErrorAction SilentlyContinue).Count -gt 0"
             GetScript  = "@{Ensure = if ((Get-ClusterGroup -Name 'SQL Server (MSSQLSERVER)' -ErrorAction SilentlyContinue).Count -gt 0) {'Present'} else {'Absent'}}"
             PsDscRunAsCredential = $DomainCreds
             DependsOn  = "[Script]PrepareClusterSQLRole"
         }
 
-        Script ClusterIPAddress {
-            SetScript  = "Get-ClusterGroup -Name 'SQL Server (MSSQLSERVER)' -ErrorAction SilentlyContinue | Get-ClusterResource | Where-Object ResourceType -eq 'IP Address' -ErrorAction SilentlyContinue | Set-ClusterParameter -Name ProbePort ${ListenerProbePort}; Stop-ClusterGroup -Name 'SQL Server (MSSQLSERVER)'; Start-ClusterGroup -Name 'SQL Server (MSSQLSERVER)'"
-            TestScript = "(Get-ClusterGroup -Name 'SQL Server (MSSQLSERVER)' -ErrorAction SilentlyContinue | Get-ClusterResource | Where-Object ResourceType -eq 'IP Address' -ErrorAction SilentlyContinue | Get-ClusterParameter -Name ProbePort).Value -eq ${ListenerProbePort}"
-            GetScript  = "@{Ensure = if ((Get-ClusterGroup -Name 'SQL Server (MSSQLSERVER)' -ErrorAction SilentlyContinue | Get-ClusterResource | Where-Object ResourceType -eq 'IP Address' -ErrorAction SilentlyContinue | Get-ClusterParameter -Name ProbePort).Value -eq ${ListenerProbePort}) {'Present'} else {'Absent'}}"
+        Script SQLIPAddress {
+            SetScript  = "Get-ClusterGroup -Name 'SQL Server (MSSQLSERVER)' -ErrorAction SilentlyContinue | Get-ClusterResource | Where-Object ResourceType -eq 'IP Address' -ErrorAction SilentlyContinue | Set-ClusterParameter -Name ProbePort ${ListenerProbePort1}; Stop-ClusterGroup -Name 'SQL Server (MSSQLSERVER)'; Start-ClusterGroup -Name 'SQL Server (MSSQLSERVER)'"
+            TestScript = "(Get-ClusterGroup -Name 'SQL Server (MSSQLSERVER)' -ErrorAction SilentlyContinue | Get-ClusterResource | Where-Object ResourceType -eq 'IP Address' -ErrorAction SilentlyContinue | Get-ClusterParameter -Name ProbePort).Value -eq ${ListenerProbePort1}"
+            GetScript  = "@{Ensure = if ((Get-ClusterGroup -Name 'SQL Server (MSSQLSERVER)' -ErrorAction SilentlyContinue | Get-ClusterResource | Where-Object ResourceType -eq 'IP Address' -ErrorAction SilentlyContinue | Get-ClusterParameter -Name ProbePort).Value -eq ${ListenerProbePort1}) {'Present'} else {'Absent'}}"
             DependsOn  = "[Script]CompleteClusterSQLRole"
         }
         
-        Script FirewallRuleProbePort {
-            SetScript  = "Remove-NetFirewallRule -DisplayName 'Failover Cluster - Probe Port' -ErrorAction SilentlyContinue; New-NetFirewallRule -DisplayName 'Failover Cluster - Probe Port' -Profile Domain -Direction Inbound -Action Allow -Enabled True -Protocol 'tcp' -LocalPort ${ListenerProbePort}"
-            TestScript = "(Get-NetFirewallRule -DisplayName 'Failover Cluster - Probe Port' -ErrorAction SilentlyContinue | Get-NetFirewallPortFilter -ErrorAction SilentlyContinue).LocalPort -eq ${ListenerProbePort}"
-            GetScript  = "@{Ensure = if ((Get-NetFirewallRule -DisplayName 'Failover Cluster - Probe Port' -ErrorAction SilentlyContinue | Get-NetFirewallPortFilter -ErrorAction SilentlyContinue).LocalPort -eq ${ListenerProbePort}) {'Present'} else {'Absent'}}"
-            DependsOn  = "[Script]ClusterIPAddress"
+        Script FirewallRuleProbePort1 {
+            SetScript  = "Remove-NetFirewallRule -DisplayName 'Failover Cluster - Probe Port 1' -ErrorAction SilentlyContinue; New-NetFirewallRule -DisplayName 'Failover Cluster - Probe Port 1' -Profile Domain -Direction Inbound -Action Allow -Enabled True -Protocol 'tcp' -LocalPort ${ListenerProbePort1}"
+            TestScript = "(Get-NetFirewallRule -DisplayName 'Failover Cluster - Probe Port 1' -ErrorAction SilentlyContinue | Get-NetFirewallPortFilter -ErrorAction SilentlyContinue).LocalPort -eq ${ListenerProbePort1}"
+            GetScript  = "@{Ensure = if ((Get-NetFirewallRule -DisplayName 'Failover Cluster - Probe Port 1' -ErrorAction SilentlyContinue | Get-NetFirewallPortFilter -ErrorAction SilentlyContinue).LocalPort -eq ${ListenerProbePort1}) {'Present'} else {'Absent'}}"
+            DependsOn  = "[Script]SQLIPAddress"
+        }
+
+        Script FirewallRuleProbePort2 {
+            SetScript  = "Remove-NetFirewallRule -DisplayName 'Failover Cluster - Probe Port 2' -ErrorAction SilentlyContinue; New-NetFirewallRule -DisplayName 'Failover Cluster - Probe Port 2' -Profile Domain -Direction Inbound -Action Allow -Enabled True -Protocol 'tcp' -LocalPort ${ListenerProbePort2}"
+            TestScript = "(Get-NetFirewallRule -DisplayName 'Failover Cluster - Probe Port 2' -ErrorAction SilentlyContinue | Get-NetFirewallPortFilter -ErrorAction SilentlyContinue).LocalPort -eq ${ListenerProbePort2}"
+            GetScript  = "@{Ensure = if ((Get-NetFirewallRule -DisplayName 'Failover Cluster - Probe Port 2' -ErrorAction SilentlyContinue | Get-NetFirewallPortFilter -ErrorAction SilentlyContinue).LocalPort -eq ${ListenerProbePort2}) {'Present'} else {'Absent'}}"
+            DependsOn  = "[Script]FirewallRuleProbePort1"
         }
 
         Script FirewallRuleListenerPort1 {
             SetScript  = "Remove-NetFirewallRule -DisplayName 'Failover Cluster - Listener Port 1' -ErrorAction SilentlyContinue; New-NetFirewallRule -DisplayName 'Failover Cluster - Listener Port 1' -Profile Domain -Direction Inbound -Action Allow -Enabled True -Protocol 'tcp' -LocalPort ${ListenerPort1}"
             TestScript = "(Get-NetFirewallRule -DisplayName 'Failover Cluster - Listener Port 1' -ErrorAction SilentlyContinue | Get-NetFirewallPortFilter -ErrorAction SilentlyContinue).LocalPort -eq ${ListenerPort1}"
             GetScript  = "@{Ensure = if ((Get-NetFirewallRule -DisplayName 'Failover Cluster - Listener Port 1' -ErrorAction SilentlyContinue | Get-NetFirewallPortFilter -ErrorAction SilentlyContinue).LocalPort -eq ${ListenerPort1}) {'Present'} else {'Absent'}}"
-            DependsOn  = "[Script]FirewallRuleProbePort"
+            DependsOn  = "[Script]FirewallRuleProbePort2"
         }
 
         Script FirewallRuleListenerPort2 {
