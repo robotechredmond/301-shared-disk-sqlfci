@@ -199,16 +199,9 @@
         "ilbListenPorts": [
             {
                 "feIpConfigId": "[concat(resourceId('Microsoft.Network/loadBalancers',variables('ilbName')),'/frontendIPConfigurations/feIpConfig0')]",
-                "protocol": "Tcp",
-                "frontend": 1433,
-                "backend": 1433,
-                "probeId": "[concat(resourceId('Microsoft.Network/loadBalancers',variables('ilbName')),'/probes/probe0')]"
-            },
-            {
-                "feIpConfigId": "[concat(resourceId('Microsoft.Network/loadBalancers',variables('ilbName')),'/frontendIPConfigurations/feIpConfig0')]",
-                "protocol": "Tcp",
-                "frontend": 2383,
-                "backend": 2383,
+                "protocol": "All",
+                "frontend": 0,
+                "backend": 0,
                 "probeId": "[concat(resourceId('Microsoft.Network/loadBalancers',variables('ilbName')),'/probes/probe0')]"
             },
             {
@@ -219,7 +212,7 @@
                 "probeId": "[concat(resourceId('Microsoft.Network/loadBalancers',variables('ilbName')),'/probes/probe1')]"
             }
         ],
-        "ilbListenPortArray": "[take(variables('ilbListenPorts'),add(variables('clusterIpNeed'),1))]",
+        "ilbListenPortArray": "[take(variables('ilbListenPorts'),variables('clusterIpNeed'))]",
         "ilbProbePorts": [
             {
                 "name": "probe0",
@@ -568,9 +561,7 @@
                     "configurationArguments": {
                         "domainName": "[parameters('existingDomainName')]",
                         "listenerProbePort1": "[variables('ilbProbePorts')[0].properties.port]",
-                        "listenerProbePort2": "[variables('ilbProbePorts')[1].properties.port]",
-                        "listenerPort1": "[variables('ilbListenPorts')[0].backend]",
-                        "listenerPort2": "[variables('ilbListenPorts')[1].backend]"
+                        "listenerProbePort2": "[variables('ilbProbePorts')[1].properties.port]"
                     }
                 },
                 "protectedSettings": {
@@ -621,9 +612,7 @@
                         "listenerIPAddress1": "[reference(variables('ilbName')).frontendIPConfigurations[0].properties.privateIPAddress]",
                         "listenerIPAddress2": "[if(equals(variables('clusterIpNeed'),2),reference(variables('ilbName')).frontendIPConfigurations[1].properties.privateIPAddress,'0.0.0.0')]",
                         "listenerProbePort1": "[variables('ilbProbePorts')[0].properties.port]",
-                        "listenerProbePort2": "[variables('ilbProbePorts')[1].properties.port]",
-                        "listenerPort1": "[variables('ilbListenPorts')[0].backend]",
-                        "listenerPort2": "[variables('ilbListenPorts')[1].backend]"
+                        "listenerProbePort2": "[variables('ilbProbePorts')[1].properties.port]"
                     }
                 },
                 "protectedSettings": {
