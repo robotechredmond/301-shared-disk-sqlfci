@@ -2,6 +2,13 @@
     "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
     "contentVersion": "1.0.0.0",
     "parameters": {
+        "location": {
+            "type": "string",
+            "metadata": {
+                "description": "Azure region in which to provision resources"
+            },
+            "defaultValue": "[resourceGroup().location]"
+        },
         "namePrefix": {
             "type": "string",
             "minLength": 3,
@@ -253,13 +260,13 @@
         {
             "name": "[variables('ppgName')]",
             "type": "Microsoft.Compute/proximityPlacementGroups",
-            "location": "[resourceGroup().location]",
+            "location": "[parameters('location')]",
             "apiVersion": "2019-03-01"
         },
         {
             "name": "[variables('asName')]",
             "type": "Microsoft.Compute/availabilitySets",
-            "location": "[resourceGroup().location]",
+            "location": "[parameters('location')]",
             "apiVersion": "2019-07-01",
             "dependsOn": [
                 "[variables('ppgName')]"
@@ -278,7 +285,7 @@
         {
             "name": "[variables('dataDiskName')]",
             "type": "Microsoft.Compute/disks",
-            "location": "[resourceGroup().location]",
+            "location": "[parameters('location')]",
             "apiVersion": "2019-07-01",
             "sku": {
                 "name": "Premium_LRS"
@@ -294,7 +301,7 @@
         {
             "name": "[variables('logDiskName')]",
             "type": "Microsoft.Compute/disks",
-            "location": "[resourceGroup().location]",
+            "location": "[parameters('location')]",
             "apiVersion": "2019-07-01",
             "condition": "[not(parameters('combineDataAndLogDisk'))]",
             "sku": {
@@ -311,7 +318,7 @@
         {
             "name": "[variables('witnessDiskName')]",
             "type": "Microsoft.Compute/disks",
-            "location": "[resourceGroup().location]",
+            "location": "[parameters('location')]",
             "apiVersion": "2019-07-01",
             "condition": "[equals(parameters('witnessType'),'Disk')]",
             "sku": {
@@ -328,7 +335,7 @@
         {
             "name": "[variables('witnessStorageName')]",
             "type": "Microsoft.Storage/storageAccounts",
-            "location": "[resourceGroup().location]",
+            "location": "[parameters('location')]",
             "apiVersion": "2019-06-01",
             "condition": "[equals(parameters('witnessType'),'Cloud')]",
             "sku": {
@@ -339,7 +346,7 @@
         {
             "name": "[variables('ilbName')]",
             "type": "Microsoft.Network/loadBalancers",
-            "location": "[resourceGroup().location]",
+            "location": "[parameters('location')]",
             "apiVersion": "2019-11-01",
             "sku": {
                 "name": "Standard"
@@ -381,7 +388,7 @@
         {
             "name": "[variables('snatPipName')]",
             "type": "Microsoft.Network/publicIPAddresses",
-            "location": "[resourceGroup().location]",
+            "location": "[parameters('location')]",
             "apiVersion": "2019-11-01",
             "sku": {
                 "name": "Standard"
@@ -395,7 +402,7 @@
         {
             "name": "[variables('snatLbName')]",
             "type": "Microsoft.Network/loadBalancers",
-            "location": "[resourceGroup().location]",
+            "location": "[parameters('location')]",
             "apiVersion": "2019-11-01",
             "dependsOn": [
                 "[variables('snatPipName')]"
@@ -449,7 +456,7 @@
         {
             "name": "[concat(parameters('namePrefix'), copyindex(), '-nic')]",
             "type": "Microsoft.Network/networkInterfaces",
-            "location": "[resourceGroup().location]",
+            "location": "[parameters('location')]",
             "apiVersion": "2019-11-01",
             "copy": {
                 "name": "nicLoop",
@@ -486,7 +493,7 @@
             "type": "Microsoft.Compute/virtualMachines",
             "apiVersion": "2019-07-01",
             "name": "[concat(parameters('namePrefix'), copyindex())]",
-            "location": "[resourceGroup().location]",
+            "location": "[parameters('location')]",
             "dependsOn": [
                 "[resourceId('Microsoft.Network/networkInterfaces',concat(parameters('namePrefix'), copyindex(), '-nic'))]",
                 "[resourceId('Microsoft.Compute/availabilitySets', variables('asName'))]",
@@ -538,7 +545,7 @@
             "type": "Microsoft.Compute/virtualMachines/extensions",
             "name": "[concat(parameters('namePrefix'),copyindex(1),'/PrepareClusterNode')]",
             "apiVersion": "2019-07-01",
-            "location": "[resourceGroup().location]",
+            "location": "[parameters('location')]",
             "dependsOn": [
                 "vmLoop"
             ],
@@ -583,7 +590,7 @@
             "type": "Microsoft.Compute/virtualMachines/extensions",
             "name": "[concat(parameters('namePrefix'),'0/ConfigureCluster')]",
             "apiVersion": "2019-07-01",
-            "location": "[resourceGroup().location]",
+            "location": "[parameters('location')]",
             "dependsOn": [
                 "vmExtensionLoop",
                 "[variables('witnessStorageName')]"
