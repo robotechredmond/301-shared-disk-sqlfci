@@ -40,8 +40,7 @@
             "type": "string",
             "metadata": {
                 "description": "Existing domain user account to be used as the SQL Server Service Account name"
-            },
-            "defaultValue": "sqlservice"
+            }
         },
         "existingSqlServiceAccountPassword": {
             "type": "securestring",
