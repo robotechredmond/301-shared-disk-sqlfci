@@ -142,8 +142,8 @@
     "variables": {
         "ppgName": "[concat(parameters('namePrefix'),'-ppg')]",
         "asName": "[concat(parameters('namePrefix'),'-as')]",
-        "asPlatformFaultDomainCount": 1,
-        "asPlatformUpdateDomainCount": 1,
+        "asPlatformFaultDomainCount": 2,
+        "asPlatformUpdateDomainCount": 5,
         "asSkuName": "Aligned",
         "dataDiskName": "[concat(parameters('namePrefix'),'-datadisk0')]",
         "logDiskName": "[concat(parameters('namePrefix'),'-logdisk0')]",
