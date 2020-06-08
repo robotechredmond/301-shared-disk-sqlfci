@@ -227,7 +227,7 @@ configuration ConfigureCluster
 
         if ($UseDNNForSQL) {
             Script ConfigureDNNforSQL {
-                SetScript = "Add-ClusterResource -Name 'SQL DNN' -ResourceType 'Distributed Network Name' -Group 'SQL Server (MSSQLSERVER)'; Get-ClusterResource -Name 'SQL DNN' | Set-ClusterParameter -Name DnsName -Value '${SQLClusterName}dnn'; `$global:DSCMachineStatus = 1"
+                SetScript = "Add-ClusterResource -Name 'SQL DNN' -ResourceType 'Distributed Network Name' -Group 'SQL Server (MSSQLSERVER)'; Get-ClusterResource -Name 'SQL DNN' | Set-ClusterParameter -Name DnsName -Value '${SQLClusterName}dnn'; Start-ClusterResource -Name 'SQL DNN' -Cluster kemac0c; `$global:DSCMachineStatus = 1"
                 TestScript = "(Get-ClusterResource -Name 'SQL DNN' -ErrorAction SilentlyContinue).Count -gt 0"
                 GetScript = "@{Ensure = if ((Get-ClusterResource -Name 'SQL DNN' -ErrorAction SilentlyContinue).Count -gt 0) {'Present'} else {'Absent'}}"
                 DependsOn = "[Script]FirewallRuleListenerPort2"
