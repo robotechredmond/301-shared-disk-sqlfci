@@ -94,7 +94,7 @@
             },
             "defaultValue": true
         },
-        "UseDNNforSQL": {
+        "UseDNNForSQL": {
             "type": "bool",
             "metadata": {
                 "description": "Enable (true) or Disable (false) Distributed Network Name (DNN) resource for clustered SQL instance"
