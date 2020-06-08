@@ -94,6 +94,13 @@
             },
             "defaultValue": true
         },
+        "UseDNNforSQL": {
+            "type": "bool",
+            "metadata": {
+                "description": "Enable (true) or Disable (false) Distributed Network Name (DNN) resource for clustered SQL instance"
+            },
+            "defaultValue": true
+        },
         "dataDiskSizeGB": {
             "type": "int",
             "minValue": 256,
@@ -618,7 +625,8 @@
                         "listenerIPAddress1": "[reference(variables('ilbName')).frontendIPConfigurations[0].properties.privateIPAddress]",
                         "listenerIPAddress2": "[if(equals(variables('clusterIpNeed'),2),reference(variables('ilbName')).frontendIPConfigurations[1].properties.privateIPAddress,'0.0.0.0')]",
                         "listenerProbePort1": "[variables('ilbProbePorts')[0].properties.port]",
-                        "listenerProbePort2": "[variables('ilbProbePorts')[1].properties.port]"
+                        "listenerProbePort2": "[variables('ilbProbePorts')[1].properties.port]",
+                        "useDNNforSQL": "[parameters('UseDNNforSQL')]"
                     }
                 },
                 "protectedSettings": {

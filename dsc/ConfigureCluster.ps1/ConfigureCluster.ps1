@@ -43,6 +43,8 @@ configuration ConfigureCluster
 
         [Int]$ListenerPort2 = 2383,
 
+        [Bool]$UseDNNforSQL = $true,
+
         [Int]$DataDiskSizeGB,
 
         [String]$WitnessStorageName,
@@ -217,10 +219,19 @@ configuration ConfigureCluster
         }
 
         Script FirewallRuleListenerPort2 {
-            SetScript  = "Remove-NetFirewallRule -DisplayName 'Failover Cluster - Listener Port 2' -ErrorAction SilentlyContinue; New-NetFirewallRule -DisplayName 'Failover Cluster - Listener Port 2' -Profile Domain -Direction Inbound -Action Allow -Enabled True -Protocol 'tcp' -LocalPort ${ListenerPort2} ; `$global:DSCMachineStatus = 1"
+            SetScript  = "Remove-NetFirewallRule -DisplayName 'Failover Cluster - Listener Port 2' -ErrorAction SilentlyContinue; New-NetFirewallRule -DisplayName 'Failover Cluster - Listener Port 2' -Profile Domain -Direction Inbound -Action Allow -Enabled True -Protocol 'tcp' -LocalPort ${ListenerPort2}"
             TestScript = "(Get-NetFirewallRule -DisplayName 'Failover Cluster - Listener Port 2' -ErrorAction SilentlyContinue | Get-NetFirewallPortFilter -ErrorAction SilentlyContinue).LocalPort -eq ${ListenerPort2}"
             GetScript  = "@{Ensure = if ((Get-NetFirewallRule -DisplayName 'Failover Cluster - Listener Port 2' -ErrorAction SilentlyContinue | Get-NetFirewallPortFilter -ErrorAction SilentlyContinue).LocalPort -eq ${ListenerPort2}) {'Present'} else {'Absent'}}"
             DependsOn  = "[Script]FirewallRuleListenerPort1"
+        }
+
+        if ($UseDNNforSQL) {
+            Script ConfigureDNNforSQL {
+                SetScript = "Add-ClusterResource -Name 'SQL DNN' -ResourceType 'Distributed Network Name' -Group 'SQL Server (MSSQLSERVER)'; Get-ClusterResource -Name 'SQL DNN' | Set-ClusterParameter -Name DnsName -Value '${SQLClusterName}dnn'; `$global:DSCMachineStatus = 1"
+                TestScript = "(Get-ClusterResource -Name 'SQL DNN').Count -gt 0"
+                GetScript = "@{Ensure = if ((Get-ClusterResource -Name 'SQL DNN').Count -gt 0) {'Present'} else {'Absent'}}"
+                DependsOn = "[Script]FirewallRuleListenerPort2"
+            }
         }
 
         LocalConfigurationManager {
