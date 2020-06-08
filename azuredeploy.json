@@ -626,7 +626,7 @@
                         "listenerIPAddress2": "[if(equals(variables('clusterIpNeed'),2),reference(variables('ilbName')).frontendIPConfigurations[1].properties.privateIPAddress,'0.0.0.0')]",
                         "listenerProbePort1": "[variables('ilbProbePorts')[0].properties.port]",
                         "listenerProbePort2": "[variables('ilbProbePorts')[1].properties.port]",
-                        "useDNNforSQL": "[parameters('UseDNNforSQL')]"
+                        "useDNNForSQL": "[parameters('UseDNNForSQL')]"
                     }
                 },
                 "protectedSettings": {
