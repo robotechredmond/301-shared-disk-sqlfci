@@ -43,7 +43,7 @@ configuration ConfigureCluster
 
         [Int]$ListenerPort2 = 2383,
 
-        [Bool]$UseDNNforSQL = $false,
+        [Bool]$UseDNNForSQL = $false,
 
         [Int]$DataDiskSizeGB,
 
@@ -225,11 +225,11 @@ configuration ConfigureCluster
             DependsOn  = "[Script]FirewallRuleListenerPort1"
         }
 
-        if ($UseDNNforSQL) {
+        if ($UseDNNForSQL) {
             Script ConfigureDNNforSQL {
                 SetScript = "Add-ClusterResource -Name 'SQL DNN' -ResourceType 'Distributed Network Name' -Group 'SQL Server (MSSQLSERVER)'; Get-ClusterResource -Name 'SQL DNN' | Set-ClusterParameter -Name DnsName -Value '${SQLClusterName}dnn'; `$global:DSCMachineStatus = 1"
-                TestScript = "(Get-ClusterResource -Name 'SQL DNN').Count -gt 0"
-                GetScript = "@{Ensure = if ((Get-ClusterResource -Name 'SQL DNN').Count -gt 0) {'Present'} else {'Absent'}}"
+                TestScript = "(Get-ClusterResource -Name 'SQL DNN' -ErrorAction SilentlyContinue).Count -gt 0"
+                GetScript = "@{Ensure = if ((Get-ClusterResource -Name 'SQL DNN' -ErrorAction SilentlyContinue).Count -gt 0) {'Present'} else {'Absent'}}"
                 DependsOn = "[Script]FirewallRuleListenerPort2"
             }
         }
