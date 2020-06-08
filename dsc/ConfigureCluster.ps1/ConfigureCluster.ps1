@@ -43,7 +43,7 @@ configuration ConfigureCluster
 
         [Int]$ListenerPort2 = 2383,
 
-        [Bool]$UseDNNforSQL = $true,
+        [Bool]$UseDNNforSQL = $false,
 
         [Int]$DataDiskSizeGB,
 
