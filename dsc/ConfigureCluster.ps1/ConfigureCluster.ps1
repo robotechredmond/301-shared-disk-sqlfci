@@ -74,16 +74,9 @@ configuration ConfigureCluster
     Node localhost
     {
 
-        Script FC {
-            SetScript = "Install-WindowsFeature -Name 'Failover-Clustering'; `$global:DSCMachineStatus = 1"
-            TestScript = "(Get-WindowsFeature -Name 'Failover-Clustering'| Where-Object InstallState -ne 'Available').Count -gt 0"
-            GetScript = "@{Ensure = if ((Get-WindowsFeature -Name 'Failover-Clustering'| Where-Object InstallState -ne 'Available').Count -gt 0) {'Present'} else {'Absent'}}"
-        }
-
         WindowsFeature FCPS {
             Name      = "RSAT-Clustering-PowerShell"
             Ensure    = "Present"
-            DependsOn = "[Script]FC"
         }
 
         WindowsFeature FCCmd {
@@ -122,12 +115,18 @@ configuration ConfigureCluster
             DependsOn  = "[WaitForADDomain]DscForestWait"
         }
 
+        WindowsFeature FC {
+            Name   = "Failover-Clustering"
+            Ensure = "Present"
+            DependsOn = "[Computer]DomainJoin"
+        }
+
         Script CreateCluster {
             SetScript            = "New-Cluster -Name ${ClusterName} -Node ${env:COMPUTERNAME} -NoStorage ${ClusterSetupOptions}"
             TestScript           = "(Get-Cluster -ErrorAction SilentlyContinue).Name -eq '${ClusterName}'"
             GetScript            = "@{Ensure = if ((Get-Cluster -ErrorAction SilentlyContinue).Name -eq '${ClusterName}') {'Present'} else {'Absent'}}"
             PsDscRunAsCredential = $DomainCreds
-            DependsOn            = "[Computer]DomainJoin"
+            DependsOn            = "[WindowsFeature]FC"
         }
 
         Script ClusterIPAddress {
