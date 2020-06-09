@@ -74,15 +74,16 @@ configuration ConfigureCluster
     Node localhost
     {
 
-        WindowsFeature FC {
-            Name   = "Failover-Clustering"
-            Ensure = "Present"
+        Script FC {
+            SetScript = "Install-WindowsFeature -Name 'Failover-Clustering'; `$global:DSCMachineStatus = 1"
+            TestScript = "(Get-WindowsFeature -Name 'Failover-Clustering'| Where-Object InstallState -ne 'Available').Count -gt 0"
+            GetScript = "@{Ensure = if ((Get-WindowsFeature -Name 'Failover-Clustering'| Where-Object InstallState -ne 'Available').Count -gt 0) {'Present'} else {'Absent'}}"
         }
 
         WindowsFeature FCPS {
             Name      = "RSAT-Clustering-PowerShell"
             Ensure    = "Present"
-            DependsOn = "[WindowsFeature]FC"
+            DependsOn = "[Script]FC"
         }
 
         WindowsFeature FCCmd {
