@@ -74,34 +74,32 @@ configuration ConfigureCluster
     Node localhost
     {
 
-        Script FC {	
-            SetScript = "Install-WindowsFeature -Name 'Failover-Clustering'"	
-            TestScript = "(Get-WindowsFeature -Name 'Failover-Clustering'| Where-Object InstallState -ne 'Available').Count -gt 0"	
-            GetScript = "@{Ensure = if ((Get-WindowsFeature -Name 'Failover-Clustering'| Where-Object InstallState -ne 'Available').Count -gt 0) {'Present'} else {'Absent'}}"	
+        WindowsFeature FC
+        {
+            Name = "Failover-Clustering"
+            Ensure = "Present"
         }
-        
-        WindowsFeature FCPS {
-            Name      = "RSAT-Clustering-PowerShell"
-            Ensure    = "Present"
-            DependsOn = "[Script]FC"
+
+        WindowsFeature FCPS
+        {
+            Name = "RSAT-Clustering-PowerShell"
+            Ensure = "Present"
         }
 
         WindowsFeature FCCmd {
-            Name      = "RSAT-Clustering-CmdInterface"
-            Ensure    = "Present"
-            DependsOn = "[WindowsFeature]FCPS"
+            Name = "RSAT-Clustering-CmdInterface"
+            Ensure = "Present"
         }
 
         WindowsFeature FCMgmt {
             Name = "RSAT-Clustering-Mgmt"
             Ensure = "Present"
-            DependsOn = "[WindowsFeature]FCCmd"
         }
 
-        WindowsFeature ADPS {
-            Name      = "RSAT-AD-PowerShell"
-            Ensure    = "Present"
-            DependsOn = "[WindowsFeature]FCMgmt"
+        WindowsFeature ADPS
+        {
+            Name = "RSAT-AD-PowerShell"
+            Ensure = "Present"
         }
 
         WaitForADDomain DscForestWait 
@@ -127,7 +125,7 @@ configuration ConfigureCluster
             TestScript           = "(Get-Cluster -ErrorAction SilentlyContinue).Name -eq '${ClusterName}'"
             GetScript            = "@{Ensure = if ((Get-Cluster -ErrorAction SilentlyContinue).Name -eq '${ClusterName}') {'Present'} else {'Absent'}}"
             PsDscRunAsCredential = $DomainCreds
-            DependsOn            = "[Computer]DomainJoin"
+            DependsOn            = @("[Computer]DomainJoin","[WindowsFeature]FC","[WindowsFeature]FCPS")
         }
 
         Script ClusterIPAddress {
