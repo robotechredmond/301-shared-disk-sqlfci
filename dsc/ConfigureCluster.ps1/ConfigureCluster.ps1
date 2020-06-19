@@ -226,7 +226,7 @@ configuration ConfigureCluster
 
         if ($UseDNNForSQL) {
             Script ConfigureDNNforSQL {
-                SetScript = "Add-ClusterResource -Name 'SQL DNN' -ResourceType 'Distributed Network Name' -Group 'SQL Server (MSSQLSERVER)'; Get-ClusterResource -Name 'SQL DNN' | Set-ClusterParameter -Name DnsName -Value '${SQLClusterName}dnn'; Start-ClusterResource -Name 'SQL DNN'; `$global:DSCMachineStatus = 1"
+                SetScript = "Get-ClusterGroup -ErrorAction SilentlyContinue | Move-ClusterGroup -Node ${env:COMPUTERNAME} -ErrorAction SilentlyContinue; Add-ClusterResource -Name 'SQL DNN' -ResourceType 'Distributed Network Name' -Group 'SQL Server (MSSQLSERVER)'; Get-ClusterResource -Name 'SQL DNN' | Set-ClusterParameter -Name DnsName -Value '${SQLClusterName}dnn'; Start-ClusterResource -Name 'SQL DNN'; `$global:DSCMachineStatus = 1"
                 TestScript = "(Get-ClusterResource -Name 'SQL DNN' -ErrorAction SilentlyContinue).Count -gt 0"
                 GetScript = "@{Ensure = if ((Get-ClusterResource -Name 'SQL DNN' -ErrorAction SilentlyContinue).Count -gt 0) {'Present'} else {'Absent'}}"
                 DependsOn = "[Script]FirewallRuleListenerPort2"
@@ -242,15 +242,18 @@ configuration ConfigureCluster
 function WaitForSqlSetup
 {
     # Wait for SQL Server Setup to finish before proceeding.
+    $SqlSetupRunning = $false
     while ($true)
     {
         try
         {
             Get-ScheduledTaskInfo "\ConfigureSqlImageTasks\RunConfigureImage" -ErrorAction Stop
             Start-Sleep -Seconds 5
+            $SqlSetupRunning = $true
         }
         catch
         {
+            if ($SqlSetupRunning) { Restart-Computer -Force }
             break
         }
     }

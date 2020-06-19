@@ -132,15 +132,18 @@ configuration PrepareClusterNode
 function WaitForSqlSetup
 {
     # Wait for SQL Server Setup to finish before proceeding.
+    $SqlSetupRunning = $false
     while ($true)
     {
         try
         {
             Get-ScheduledTaskInfo "\ConfigureSqlImageTasks\RunConfigureImage" -ErrorAction Stop
             Start-Sleep -Seconds 5
+            $SqlSetupRunning = $true
         }
         catch
         {
+            if ($SqlSetupRunning) { Restart-Computer -Force }
             break
         }
     }
